@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Sweeps truss configurations through the Balsa Truss Workbench and ranks them by load carried per gram.">
+<title>Truss Optimizer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 26h28M2 26l8-18 6 18 6-18 8 18' stroke='%230E5E58' stroke-width='3' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#EFF1EC; --surface:#FAFBF8; --surface-2:#E4E7DF; --surface-3:#DADFD4;
+  --ink:#1A211C; --ink-2:#4E5A51; --ink-3:#7C887F;
+  --line:#C9D0C5; --line-2:#B2BCAE;
+  --accent:#0E5E58; --accent-soft:#D6E7E3;
+  --ok:#2F7D4F; --warn:#9A6B08; --danger:#A3231B;
+  --ok-bg:#DDEEE3; --danger-bg:#F6DEDB;
+  --shadow:0 1px 2px rgba(26,33,28,.07), 0 8px 24px -16px rgba(26,33,28,.25);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0F1411; --surface:#19201B; --surface-2:#232B25; --surface-3:#2C352E;
+    --ink:#E7EDE6; --ink-2:#A5B2A6; --ink-3:#778377;
+    --line:#2F3931; --line-2:#3E4A40;
+    --accent:#5FD3C4; --accent-soft:#12302C;
+    --ok:#62C68B; --warn:#DCAB3E; --danger:#E8756A;
+    --ok-bg:#16301F; --danger-bg:#331B18;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0F1411; --surface:#19201B; --surface-2:#232B25; --surface-3:#2C352E;
+  --ink:#E7EDE6; --ink-2:#A5B2A6; --ink-3:#778377;
+  --line:#2F3931; --line-2:#3E4A40;
+  --accent:#5FD3C4; --accent-soft:#12302C;
+  --ok:#62C68B; --warn:#DCAB3E; --danger:#E8756A;
+  --ok-bg:#16301F; --danger-bg:#331B18;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+html{color-scheme:light dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;font-size:15px;line-height:1.5;
+  padding-block:22px 48px;padding-left:20px;padding-right:20px;max-width:1240px;margin:0 auto}
+h1,h2{font-family:"IBM Plex Sans Condensed","IBM Plex Sans",sans-serif;font-weight:700;margin:0;text-wrap:balance}
+.mono,td.num,.stat-v{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+header{display:flex;flex-wrap:wrap;gap:14px 26px;align-items:flex-end;justify-content:space-between;
+  border-bottom:1.5px solid var(--line-2);padding-bottom:14px;margin-bottom:20px}
+.brand h1{font-size:27px;line-height:1.1}
+.brand p{margin:5px 0 0;color:var(--ink-2);font-size:13.5px;max-width:64ch}
+.brand a{color:var(--accent)}
+.specs{display:flex;border:1px solid var(--line);border-radius:3px;overflow:hidden;background:var(--surface);flex-wrap:wrap}
+.spec{padding:7px 13px;border-right:1px solid var(--line)}
+.spec:last-child{border-right:0}
+.spec dt{font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:10px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--ink-3);margin:0}
+.spec dd{margin:1px 0 0;font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:4px;box-shadow:var(--shadow);margin-bottom:16px}
+.card > h2{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600}
+.card-body{padding:16px}
+
+.controls{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) auto;gap:14px;align-items:end}
+@media (max-width:820px){.controls{grid-template-columns:minmax(0,1fr)}}
+.field label{display:block;font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:10.5px;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px}
+select{width:100%;font:15px "IBM Plex Sans",sans-serif;padding:9px 10px;border:1px solid var(--line-2);
+  border-radius:3px;background:var(--paper);color:var(--ink)}
+select:disabled{opacity:.45}
+button{border:0;border-radius:3px;background:var(--accent);color:var(--paper);
+  font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:700;font-size:13.5px;letter-spacing:.06em;
+  text-transform:uppercase;padding:11px 22px;cursor:pointer;white-space:nowrap}
+button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line-2)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{font-size:12.5px;color:var(--ink-3);margin-top:10px;grid-column:1/-1}
+
+.bar{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;margin:4px 0 9px}
+.bar i{display:block;height:100%;width:0;background:var(--accent)}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .2s linear}}
+.runline{display:flex;justify-content:space-between;gap:14px;font-family:"IBM Plex Mono",monospace;
+  font-size:12.5px;color:var(--ink-2)}
+
+.winner{display:flex;flex-wrap:wrap;gap:18px;align-items:center;padding:14px;border-radius:3px;
+  background:var(--ok-bg);border:1px solid color-mix(in srgb,var(--ok) 32%,transparent)}
+.winner img{width:min(420px,100%);border:1px solid var(--line);border-radius:3px;background:var(--surface)}
+.winner .who{min-width:230px;flex:1}
+.winner h3{margin:0;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:20px;color:var(--ok)}
+dl.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin:9px 0 0;font-size:13.5px}
+dl.kv dt{color:var(--ink-2)}
+dl.kv dd{margin:0;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+
+/* single measure across categories, sorted -> one hue, direct labels, no legend */
+.chart{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:5px 10px;align-items:center;font-size:13px}
+.chart .cat{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
+.chart .track{background:var(--surface-2);border-radius:2px;height:15px;position:relative}
+.chart .track i{display:block;height:100%;border-radius:2px;background:var(--accent)}
+.chart .val{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;color:var(--ink);font-size:12.5px}
+.axis{grid-column:2/4;font-size:11px;color:var(--ink-3);border-top:1px solid var(--line);padding-top:4px;margin-top:3px}
+
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{position:sticky;top:0;background:var(--surface-2);text-align:left;
+  font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:10px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink-3);padding:8px 7px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+tbody td{padding:7px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+tbody tr:hover{background:var(--accent-soft)}
+tbody tr.top td{font-weight:500}
+td.num{text-align:right}
+td img{display:block;width:170px;border:1px solid var(--line);border-radius:2px;background:var(--surface)}
+.empty{padding:26px 14px;text-align:center;color:var(--ink-3);font-size:13px}
+.err{background:var(--danger-bg);border:1px solid color-mix(in srgb,var(--danger) 35%,transparent);
+  border-radius:3px;padding:13px 15px;font-size:13.5px}
+.err b{color:var(--danger)}
+footer{margin-top:22px;border-top:1px solid var(--line);padding-top:14px;font-size:12px;color:var(--ink-3);max-width:86ch}
+footer p{margin:0 0 9px}
+code{font-family:"IBM Plex Mono",monospace;font-size:11.5px;background:var(--surface-2);padding:1px 5px;border-radius:2px}
+#stage{position:fixed;left:-20000px;top:0;width:1400px;height:1250px;border:0;visibility:hidden}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>Truss Optimizer</h1>
+    <p>Sweeps truss configurations through the <a id="designer-link" href="./index.html">Balsa Truss Workbench</a>
+    and ranks them by the load each design carries per gram of balsa. Every number comes from the
+    workbench's own solver, so the results match what you see when you draw the same truss by hand.</p>
+  </div>
+  <dl class="specs">
+    <div class="spec"><dt>Span</dt><dd>12.00 in</dd></div>
+    <div class="spec"><dt>Height</dt><dd>2.00 – 6.00 in</dd></div>
+    <div class="spec"><dt>Depth</dt><dd>2.00 in</dd></div>
+    <div class="spec"><dt>Stock</dt><dd>0.25 in sq.</dd></div>
+  </dl>
+</header>
+
+<section class="card">
+  <h2>Analysis</h2>
+  <div class="card-body">
+    <div class="controls">
+      <div class="field">
+        <label for="mode">Analysis option</label>
+        <select id="mode">
+          <option value="best_type">1 — Best truss type (10 configurations of each of 7 types)</option>
+          <option value="single_type">2 — One truss type (30 configurations)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="type">Truss type</label>
+        <select id="type" disabled></select>
+      </div>
+      <div class="field"><button id="go" type="button">Run analysis</button></div>
+      <p class="hint" id="hint"></p>
+    </div>
+  </div>
+</section>
+
+<section class="card" id="progress-card" hidden>
+  <h2>Running</h2>
+  <div class="card-body">
+    <div class="runline"><span id="run-msg">Starting…</span><span id="run-count"></span></div>
+    <div class="bar"><i id="run-fill"></i></div>
+  </div>
+</section>
+
+<section class="card" id="fail-card" hidden>
+  <h2>Problem</h2>
+  <div class="card-body"><div class="err" id="fail-body"></div></div>
+</section>
+
+<section class="card" id="best-card" hidden>
+  <h2>Best design</h2>
+  <div class="card-body"><div class="winner" id="winner"></div></div>
+</section>
+
+<section class="card" id="chart-card" hidden>
+  <h2 id="chart-title">Load carried per gram of balsa</h2>
+  <div class="card-body"><div class="chart" id="chart"></div></div>
+</section>
+
+<section class="card" id="table-card" hidden>
+  <h2>
+    All configurations
+    <span style="float:right;text-transform:none;letter-spacing:0">
+      <button class="ghost" id="dl-xlsx" type="button" style="padding:5px 12px;font-size:11.5px">Download spreadsheet</button>
+      <button class="ghost" id="dl-csv" type="button" style="padding:5px 12px;font-size:11.5px">CSV</button>
+    </span>
+  </h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Truss type</th><th>Configuration</th><th class="num">Height in</th>
+        <th class="num">Members</th><th class="num">Mass g</th><th class="num">Max load lb</th>
+        <th class="num">lb per g</th><th>Limited by</th><th>2D truss</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <p><b>Maximum load</b> is the total load at which the first member reaches its capacity — the workbench's
+  predicted failure load. <b>Mass</b> and <b>load/weight</b> cover the whole bridge: both plane trusses plus the
+  cross members. Results scale linearly with load, so the ranking does not depend on the load the sweep is run at.</p>
+  <p>Configurations vary <b>panel count × height</b>. Only geometries that land on the 0.25 in grid are generated,
+  so the K, Baltimore and Pennsylvania types — which need a joint at half height — use heights in 0.50 in steps.
+  Option 1 is a coarse scan, good for ranking types; run option 2 on the winner to find its real optimum.</p>
+  <p>Everything runs in this browser tab. Nothing is uploaded and no account is needed.</p>
+</footer>
+
+<iframe id="stage" src="./index.html" title="Truss workbench analysis engine"></iframe>
+
+<script>
+(function(){
+"use strict";
+
+/* ===================================================================
+   1. Truss generators — 12.00 in span, 0.25 in grid, joint at midspan
+   =================================================================== */
+const SPAN=12, GRID=0.25, H_MIN=2, H_MAX=6;
+const g = v => Math.round(Math.round(v/GRID)*GRID*100)/100;
+
+/* Python-compatible half-to-even rounding, so this page and the Python
+   tool pick exactly the same configurations. */
+function pyRound(x){
+  const f=Math.floor(x), d=x-f;
+  if(Math.abs(d-0.5)<1e-9) return (f%2===0)?f:f+1;
+  return Math.round(x);
+}
+const chain = pts => pts.slice(0,-1).map((p,i)=>[p,pts[i+1]]);
+
+function parallelChords(n,h){
+  const p=SPAN/n, xs=[];
+  for(let i=0;i<=n;i++) xs.push(g(i*p));
+  const bot=xs.map(x=>[x,0]), top=xs.map(x=>[x,h]);
+  return {xs,bot,top,m:chain(bot).concat(chain(top))};
+}
+
+function pratt(n,h){
+  const {xs,bot,top,m}=parallelChords(n,h), half=n/2;
+  for(let i=0;i<xs.length;i++) m.push([bot[i],top[i]]);
+  for(let i=0;i<n;i++) m.push(i<half ? [top[i],bot[i+1]] : [bot[i],top[i+1]]);
+  return m;
+}
+function howe(n,h){
+  const {xs,bot,top,m}=parallelChords(n,h), half=n/2;
+  for(let i=0;i<xs.length;i++) m.push([bot[i],top[i]]);
+  for(let i=0;i<n;i++) m.push(i<half ? [bot[i],top[i+1]] : [top[i],bot[i+1]]);
+  return m;
+}
+function kTruss(n,h){
+  const {xs,bot,top,m}=parallelChords(n,h), hm=g(h/2), half=n/2, mid={};
+  for(let i=1;i<n;i++) mid[i]=[xs[i],hm];
+  for(let i=0;i<xs.length;i++){
+    if(mid[i]){ m.push([bot[i],mid[i]]); m.push([mid[i],top[i]]); }
+    else m.push([bot[i],top[i]]);
+  }
+  for(let i=0;i<n;i++){
+    if(i<half){ const v=mid[i+1]; m.push([bot[i],v],[top[i],v]); }
+    else { const v=mid[i]; m.push([bot[i+1],v],[top[i+1],v]); }
+  }
+  return m;
+}
+function warrenNodes(nTop,d){
+  const half=(nTop-1)/2, tops=[];
+  for(let j=-half;j<=half;j++) tops.push(g(6+j*d));
+  const mids=tops.slice(0,-1).map((t,i)=>g((t+tops[i+1])/2));
+  return {tops, bots:[0].concat(mids,[SPAN])};
+}
+function warren(nTop,d,h){
+  const {tops,bots}=warrenNodes(nTop,d);
+  const T=tops.map(x=>[x,h]), B=bots.map(x=>[x,0]);
+  const m=chain(B).concat(chain(T));
+  for(let i=0;i<T.length;i++){ m.push([B[i],T[i]]); m.push([T[i],B[i+1]]); }
+  return m;
+}
+function warrenVerticals(nTop,d,h){
+  const {tops,bots}=warrenNodes(nTop,d);
+  const allX=[...new Set(bots.concat(tops))].sort((a,b)=>a-b);
+  const B=allX.map(x=>[x,0]), T=tops.map(x=>[x,h]), DB=bots.map(x=>[x,0]);
+  const m=chain(B).concat(chain(T));
+  for(let i=0;i<T.length;i++){ m.push([DB[i],T[i]]); m.push([T[i],DB[i+1]]); }
+  for(const x of tops) m.push([[x,0],[x,h]]);
+  return m;
+}
+function subdivided(n, topY){
+  const p=SPAN/n, xs=[], ys=[];
+  for(let i=0;i<=n;i++){ xs.push(g(i*p)); ys.push(topY(i)); }
+  const bot=xs.map(x=>[x,0]), top=xs.map((x,i)=>[x,ys[i]]), half=n/2;
+  const m=chain(top);
+  for(let i=0;i<xs.length;i++) m.push([bot[i],top[i]]);
+  const botNodes=[bot[0]];
+  for(let i=0;i<n;i++){
+    const mx=g(xs[i]+p/2), subBot=[mx,0];
+    botNodes.push(subBot, bot[i+1]);
+    const a = i<half ? top[i] : bot[i];
+    const b = i<half ? bot[i+1] : top[i+1];
+    const dMid=[mx, g((a[1]+b[1])/2)];
+    m.push([a,dMid],[dMid,b]);              // main diagonal, pre-split
+    m.push([subBot,dMid]);                  // sub-strut
+    m.push([dMid, i<half ? bot[i] : bot[i+1]]);   // sub-tie toward the support
+  }
+  return m.concat(chain(botNodes));
+}
+const baltimore = (n,h) => subdivided(n, () => h);
+function pennsylvania(n,h){
+  const p=SPAN/n, hEnd=Math.max(1, Math.round(0.5*h*2)/2);
+  return subdivided(n, i=>{
+    const x=i*p, f=1-Math.pow((x-6)/6,2);
+    return Math.max(hEnd, Math.round((hEnd+(h-hEnd)*f)*2)/2);
+  });
+}
+
+const heightsBy = step => {
+  const out=[], n=Math.round((H_MAX-H_MIN)/step);
+  for(let i=0;i<=n;i++) out.push(Math.round((H_MIN+i*step)*100)/100);
+  return out;
+};
+const H_QUARTER=heightsBy(0.25), H_HALF=heightsBy(0.5);
+
+const TYPES={
+  "Pratt":{build:(t,h)=>pratt(t[0],h), topologies:[[4],[6],[8],[12]], heights:H_QUARTER,
+    label:t=>`${t[0]} panels`,
+    blurb:"Parallel chords, verticals at every panel point, diagonals sloping down toward midspan."},
+  "Howe":{build:(t,h)=>howe(t[0],h), topologies:[[4],[6],[8],[12]], heights:H_QUARTER,
+    label:t=>`${t[0]} panels`,
+    blurb:"The Pratt with its diagonals mirrored, so they slope up toward midspan."},
+  "Warren":{build:(t,h)=>warren(t[0],t[1],h), topologies:[[3,3],[3,4],[5,2],[5,2.5],[7,1.5],[9,1]],
+    heights:H_QUARTER, label:t=>`${t[0]} top joints @ ${t[1].toFixed(2)} in`,
+    blurb:"Alternating triangles with no verticals and inclined end posts."},
+  "Warren with Verticals":{build:(t,h)=>warrenVerticals(t[0],t[1],h),
+    topologies:[[3,3],[3,4],[5,2],[5,2.5],[7,1.5],[9,1]], heights:H_QUARTER,
+    label:t=>`${t[0]} top joints @ ${t[1].toFixed(2)} in`,
+    blurb:"Warren triangles with a vertical dropped from every top joint."},
+  "K-Type":{build:(t,h)=>kTruss(t[0],h), topologies:[[4],[6],[8],[12]], heights:H_HALF,
+    label:t=>`${t[0]} panels`,
+    blurb:"Each panel braced by two half-diagonals meeting the vertical at mid-height."},
+  "Baltimore":{build:(t,h)=>baltimore(t[0],h), topologies:[[4],[6],[8],[12]], heights:H_HALF,
+    label:t=>`${t[0]} panels`,
+    blurb:"Pratt with sub-divided panels: a sub-strut and sub-tie in every bay."},
+  "Pennsylvania":{build:(t,h)=>pennsylvania(t[0],h), topologies:[[4],[6],[8],[12]], heights:H_HALF,
+    label:t=>`${t[0]} panels`,
+    blurb:"Baltimore sub-division under a polygonal top chord that rises to midspan."},
+};
+const TYPE_NAMES=Object.keys(TYPES);
+
+function spread(seq,k){
+  if(k>=seq.length) return seq.slice();
+  if(k<=1) return [seq[0]];
+  const n=seq.length, out=[];
+  for(let i=0;i<k;i++) out.push(seq[pyRound(i*(n-1)/(k-1))]);
+  return out;
+}
+/* Split the run budget into as square a topology x height grid as the type
+   allows — filling topologies first would test every panel count at only the
+   two extreme heights. */
+function balanced(count,nT,nH){
+  let best=null;
+  for(let nt=1;nt<=nT;nt++){
+    const nh=Math.ceil(count/nt);
+    if(nh>nH) continue;
+    const score=[Math.abs(nt-nh),-nt];
+    if(!best || score[0]<best[0][0] || (score[0]===best[0][0] && score[1]<best[0][1])) best=[score,nt,nh];
+  }
+  return best ? [best[1],best[2]] : [nT,nH];
+}
+function configurations(name,count){
+  const spec=TYPES[name];
+  const [nt,nh]=balanced(count, spec.topologies.length, spec.heights.length);
+  const topos=spread(spec.topologies,nt), heights=spread(spec.heights,nh);
+  const grid=[];
+  for(const t of topos) for(const h of heights) grid.push([t,h]);
+  return spread(grid,count).map(([t,h])=>({
+    type:name, topology:t, topologyLabel:spec.label(t), height:h, members:spec.build(t,h)
+  }));
+}
+
+/* ===================================================================
+   2. Driver — lays members in the workbench and reads its results
+   =================================================================== */
+const VX0=-0.95, VX1=14.35, VY1=6.6;
+const stage=document.getElementById("stage");
+let win=null, doc=null;
+
+function tap(cv, rect, S, OX, OY, x, y){
+  const cx=rect.left+OX+x*S, cy=rect.top+OY-y*S;
+  for(const type of ["pointerdown","pointerup"]){
+    cv.dispatchEvent(new win.PointerEvent(type,
+      {clientX:cx, clientY:cy, bubbles:true, pointerId:1, isPrimary:true}));
+  }
+}
+function num(t){
+  if(t==null) return null;
+  if(t.indexOf("∞")>=0) return Infinity;
+  const m=String(t).replace(/,/g,"").match(/-?\d*\.?\d+/);
+  return m ? parseFloat(m[0]) : null;
+}
+const txt = id => (doc.getElementById(id)||{}).textContent || "";
+
+const THUMB_W=470;
+const shotCanvas=document.createElement("canvas");
+function thumbnail(){
+  const cv=doc.getElementById("cv");
+  const h=Math.round(cv.height*THUMB_W/cv.width);
+  shotCanvas.width=THUMB_W; shotCanvas.height=h;
+  const c=shotCanvas.getContext("2d");
+  c.imageSmoothingQuality="high";
+  c.drawImage(cv,0,0,THUMB_W,h);
+  return {url:shotCanvas.toDataURL("image/png"), w:THUMB_W, h};
+}
+
+function analyze(members, loadLb){
+  const cv=doc.getElementById("cv");
+  doc.getElementById("btn-clear").click();
+  const inp=doc.getElementById("load");
+  inp.value=String(loadLb);
+  inp.dispatchEvent(new win.Event("input",{bubbles:true}));
+
+  cv.setPointerCapture=()=>{}; cv.releasePointerCapture=()=>{};
+  const rect=cv.getBoundingClientRect();
+  const S=cv.clientWidth/(VX1-VX0), OX=-VX0*S, OY=VY1*S;
+  for(const [a,b] of members){ tap(cv,rect,S,OX,OY,a[0],a[1]); tap(cv,rect,S,OX,OY,b[0],b[1]); }
+
+  const verdict=txt("verdict-t").trim();
+  const problems=[...doc.querySelectorAll("#issues li.err")].map(e=>e.textContent.trim());
+  if(problems.length || (verdict!=="Carries the load" && verdict!=="Fails")){
+    return {ok:false, problems: problems.length?problems:[txt("verdict-s").trim()||verdict]};
+  }
+  const maxLoad=num(txt("s-fail")), mass=num(txt("s-mass"));
+  const detail=txt("verdict-s");
+  const lim=detail.match(/—\s*(.+?)\.?$/);
+  return {
+    ok:true, maxLoad, mass,
+    loadPerGram: (maxLoad&&mass)? maxLoad/mass : null,
+    loadPerLoad: (maxLoad&&mass)? maxLoad/(mass/453.59237) : null,
+    fos:num(txt("fos")), tension:num(txt("s-ten")), compression:num(txt("s-com")),
+    deflection:num(txt("s-def")),
+    members:[...doc.querySelectorAll("#rows tr")].filter(r=>!r.classList.contains("xrow")).length,
+    limitedBy: lim?lim[1]:"",
+    shot: thumbnail()
+  };
+}
+
+/* ===================================================================
+   3. XLSX writer — self-contained, no libraries
+   =================================================================== */
+const enc=new TextEncoder();
+let CRC_T=null;
+function crcTable(){
+  if(CRC_T) return CRC_T;
+  CRC_T=new Uint32Array(256);
+  for(let n=0;n<256;n++){ let c=n;
+    for(let k=0;k<8;k++) c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1);
+    CRC_T[n]=c>>>0;
+  }
+  return CRC_T;
+}
+function crc32(buf){
+  const t=crcTable(); let c=0xFFFFFFFF;
+  for(let i=0;i<buf.length;i++) c=t[(c ^ buf[i]) & 0xFF] ^ (c>>>8);
+  return (c ^ 0xFFFFFFFF)>>>0;
+}
+function zipStore(files){
+  const chunks=[], central=[]; let offset=0;
+  const put=(arr)=>{ chunks.push(arr); offset+=arr.length; };
+  for(const f of files){
+    const name=enc.encode(f.name), data=f.data, crc=crc32(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true); lh.setUint16(6,0,true);
+    lh.setUint16(8,0,true); lh.setUint16(10,0,true); lh.setUint16(12,0x2821,true);
+    lh.setUint32(14,crc,true); lh.setUint32(18,data.length,true); lh.setUint32(22,data.length,true);
+    lh.setUint16(26,name.length,true); lh.setUint16(28,0,true);
+    const start=offset;
+    put(new Uint8Array(lh.buffer)); put(name); put(data);
+    const cd=new DataView(new ArrayBuffer(46));
+    cd.setUint32(0,0x02014b50,true); cd.setUint16(4,20,true); cd.setUint16(6,20,true);
+    cd.setUint16(8,0,true); cd.setUint16(10,0,true); cd.setUint16(12,0,true); cd.setUint16(14,0x2821,true);
+    cd.setUint32(16,crc,true); cd.setUint32(20,data.length,true); cd.setUint32(24,data.length,true);
+    cd.setUint16(28,name.length,true); cd.setUint16(30,0,true); cd.setUint16(32,0,true);
+    cd.setUint16(34,0,true); cd.setUint16(36,0,true); cd.setUint32(38,0,true); cd.setUint32(42,start,true);
+    central.push(new Uint8Array(cd.buffer), name);
+  }
+  const cdStart=offset;
+  let cdLen=0; for(const c of central){ chunks.push(c); cdLen+=c.length; }
+  offset+=cdLen;
+  const eo=new DataView(new ArrayBuffer(22));
+  eo.setUint32(0,0x06054b50,true); eo.setUint16(8,files.length,true); eo.setUint16(10,files.length,true);
+  eo.setUint32(12,cdLen,true); eo.setUint32(16,cdStart,true); eo.setUint16(20,0,true);
+  chunks.push(new Uint8Array(eo.buffer));
+  const total=chunks.reduce((s,c)=>s+c.length,0), out=new Uint8Array(total);
+  let p=0; for(const c of chunks){ out.set(c,p); p+=c.length; }
+  return out;
+}
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+                          .replace(/"/g,"&quot;").replace(/—/g,"-").replace(/·/g,"-");
+function b64ToBytes(b64){
+  const bin=atob(b64), out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+  return out;
+}
+const COL = n => { let s=""; n++; while(n>0){ const r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=(n-1-r)/26; } return s; };
+const EMU = 9525;
+
+/* style ids: 0 normal | 1 title | 2 note | 3 header | 4 text | 5 bold text
+   6..9 numbers 0.00 / 0.0 / 0 / 0.0000 | 10..13 the same in bold          */
+const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="2"><numFmt numFmtId="164" formatCode="0.0"/><numFmt numFmtId="165" formatCode="0.0000"/></numFmts>
+<fonts count="5">
+<font><sz val="11"/><color rgb="FF1A211C"/><name val="Calibri"/></font>
+<font><b/><sz val="16"/><color rgb="FF1A211C"/><name val="Calibri"/></font>
+<font><sz val="9"/><color rgb="FF4E5A51"/><name val="Calibri"/></font>
+<font><b/><sz val="9"/><color rgb="FF1A211C"/><name val="Calibri"/></font>
+<font><b/><sz val="11"/><color rgb="FF1A211C"/><name val="Calibri"/></font>
+</fonts>
+<fills count="3"><fill><patternFill patternType="none"/></fill>
+<fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFE4E7DF"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>
+<border><left/><right/><top/><bottom style="thin"><color rgb="FFC9D0C5"/></bottom><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="14">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
+<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="2" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="1" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="2" fontId="4" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="4" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="1" fontId="4" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="165" fontId="4" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+
+function cellXml(ref, value, style, isText){
+  if(value===null || value===undefined || value==="") return `<c r="${ref}" s="${style}"/>`;
+  if(isText) return `<c r="${ref}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${esc(value)}</t></is></c>`;
+  const v = (typeof value==="number" && isFinite(value)) ? value : 0;
+  return `<c r="${ref}" s="${style}"><v>${v}</v></c>`;
+}
+
+function sheetXml(rows, cols, opts){
+  opts=opts||{};
+  let s=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`;
+  if(opts.freezeRow){
+    s+=`<sheetViews><sheetView workbookViewId="0"><pane ySplit="${opts.freezeRow}" topLeftCell="A${opts.freezeRow+1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`;
+  }
+  s+=`<sheetFormatPr defaultRowHeight="15"/>`;
+  if(cols&&cols.length){
+    s+="<cols>"+cols.map((w,i)=>`<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("")+"</cols>";
+  }
+  s+="<sheetData>";
+  rows.forEach((row,ri)=>{
+    const r=ri+1;
+    const ht = (opts.heights && opts.heights[r]) ? ` ht="${opts.heights[r]}" customHeight="1"` : "";
+    s+=`<row r="${r}"${ht}>`;
+    row.forEach((cell,ci)=>{
+      if(cell===null||cell===undefined) return;
+      s+=cellXml(COL(ci)+r, cell.v, cell.s||0, cell.t==="s");
+    });
+    s+="</row>";
+  });
+  s+="</sheetData>";
+  if(opts.drawing) s+=`<drawing r:id="rId1"/>`;
+  s+="</worksheet>";
+  return s;
+}
+
+function buildXlsx(meta, ranked){
+  const files=[];
+  const add=(name,str)=>files.push({name, data: typeof str==="string"?enc.encode(str):str});
+
+  /* ---- Results sheet ---- */
+  const headers=["Rank","Truss type","Configuration","Height (in)","Members","Mass (g)",
+                 "Max load (lb)","Load / weight (lb per g)","Load / weight (lb per lb)",
+                 "Limited by","Peak tension (lb)","Peak compression (lb)","Deflection (in)","2D truss"];
+  const widths=[7,21,22,11,10,11,14,15,15,16,12,13,12,67];
+  const rows=[
+    [{v:meta.title,s:1,t:"s"}],
+    [{v:meta.subtitle,s:2,t:"s"}],
+    ...meta.notes.map(n=>[{v:n,s:2,t:"s"}]),
+    [],
+    headers.map(h=>({v:h,s:3,t:"s"}))
+  ];
+  const headRow=rows.length;
+  const heights={}; heights[headRow]=30;
+  const images=[];
+  ranked.forEach((r,i)=>{
+    const a=r.analysis, bold=(i===0);
+    rows.push([
+      {v:i+1, s:bold?12:8},
+      {v:r.type, s:bold?5:4, t:"s"},
+      {v:r.topologyLabel, s:bold?5:4, t:"s"},
+      {v:r.height, s:bold?10:6},
+      {v:a.members, s:bold?12:8},
+      {v:a.mass, s:bold?10:6},
+      {v:a.maxLoad, s:bold?11:7},
+      {v:a.loadPerGram, s:bold?10:6},
+      {v:a.loadPerLoad, s:bold?12:8},
+      {v:a.limitedBy, s:bold?5:4, t:"s"},
+      {v:a.tension, s:bold?11:7},
+      {v:a.compression, s:bold?11:7},
+      {v:a.deflection, s:bold?13:9},
+      {v:"", s:4}
+    ]);
+    const rowIdx=rows.length;
+    heights[rowIdx]=Math.round(a.shot.h*0.75+6);
+    images.push({row:rowIdx-1, col:13, w:a.shot.w, h:a.shot.h, b64:a.shot.url.split(",")[1]});
+  });
+  add("xl/worksheets/sheet1.xml", sheetXml(rows, widths, {freezeRow:headRow, heights, drawing:true}));
+
+  /* ---- Summary sheet ---- */
+  const sRows=[
+    [{v:meta.summaryTitle,s:1,t:"s"}],
+    [{v:meta.subtitle,s:2,t:"s"}],
+    [{v:"Higher load/weight is better: the load the bridge carries per gram of balsa in it.",s:2,t:"s"}],
+    [],
+    [meta.catLabel,"Configuration","Height (in)","Members","Mass (g)","Max load (lb)","Load / weight (lb per g)"]
+      .map(h=>({v:h,s:3,t:"s"}))
+  ];
+  meta.summary.forEach((row,i)=>{
+    const a=row.r.analysis, bold=(i===0);
+    sRows.push([
+      {v:row.label, s:bold?5:4, t:"s"},
+      {v:row.r.topologyLabel, s:bold?5:4, t:"s"},
+      {v:row.r.height, s:bold?10:6},
+      {v:a.members, s:bold?12:8},
+      {v:a.mass, s:bold?10:6},
+      {v:a.maxLoad, s:bold?11:7},
+      {v:a.loadPerGram, s:bold?10:6}
+    ]);
+  });
+  add("xl/worksheets/sheet2.xml", sheetXml(sRows,[30,24,12,11,12,14,16],{}));
+
+  /* ---- drawing with the truss pictures ---- */
+  let drawing=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">`;
+  let drawRels=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`;
+  images.forEach((im,i)=>{
+    const rid="rId"+(i+1);
+    drawing+=`<xdr:oneCellAnchor><xdr:from><xdr:col>${im.col}</xdr:col><xdr:colOff>${3*EMU}</xdr:colOff><xdr:row>${im.row}</xdr:row><xdr:rowOff>${3*EMU}</xdr:rowOff></xdr:from>`
+      +`<xdr:ext cx="${im.w*EMU}" cy="${im.h*EMU}"/>`
+      +`<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${i+2}" name="Truss ${i+1}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>`
+      +`<xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>`
+      +`<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${im.w*EMU}" cy="${im.h*EMU}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>`
+      +`</xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`;
+    drawRels+=`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${i+1}.png"/>`;
+    files.push({name:`xl/media/image${i+1}.png`, data:b64ToBytes(im.b64)});
+  });
+  drawing+="</xdr:wsDr>"; drawRels+="</Relationships>";
+  add("xl/drawings/drawing1.xml", drawing);
+  add("xl/drawings/_rels/drawing1.xml.rels", drawRels);
+  add("xl/worksheets/_rels/sheet1.xml.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/></Relationships>`);
+
+  add("xl/styles.xml", STYLES);
+  add("xl/workbook.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets><sheet name="Results" sheetId="1" r:id="rId1"/><sheet name="Summary" sheetId="2" r:id="rId2"/></sheets></workbook>`);
+  add("xl/_rels/workbook.xml.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
+<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
+  add("_rels/.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`);
+  add("[Content_Types].xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="png" ContentType="image/png"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
+</Types>`);
+  return zipStore(files);
+}
+
+/* ===================================================================
+   4. UI
+   =================================================================== */
+const $=id=>document.getElementById(id);
+const fmt=(v,d)=> (v==null||!isFinite(v)) ? "—" :
+  v.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const HINTS={
+  best_type:"70 runs — 10 configurations of each truss type. Takes a few seconds.",
+  single_type:"30 configurations of the truss type you pick, varying height and panel count."
+};
+let RESULT=null, running=false;
+
+$("type").innerHTML=TYPE_NAMES.map(n=>`<option value="${n}">${n}</option>`).join("");
+function syncMode(){
+  const single=$("mode").value==="single_type";
+  $("type").disabled=!single;
+  $("hint").textContent = single ? (TYPES[$("type").value]||{}).blurb : HINTS.best_type;
+}
+$("mode").addEventListener("change",syncMode);
+$("type").addEventListener("change",syncMode);
+syncMode();
+
+function fail(html){
+  $("fail-card").hidden=false;
+  $("fail-body").innerHTML=html;
+  $("progress-card").hidden=true;
+}
+
+stage.addEventListener("load",()=>{
+  try{
+    win=stage.contentWindow; doc=stage.contentDocument;
+    if(!doc || !doc.getElementById("btn-clear")) throw new Error("no workbench");
+    $("go").disabled=false;
+  }catch(e){
+    $("go").disabled=true;
+    fail(`<b>Can't reach the Truss Workbench.</b> This page drives <code>index.html</code> sitting
+      next to it, so both files must be served from the same web address. Open this page from your
+      class link rather than from a downloaded copy.`);
+  }
+});
+
+$("go").addEventListener("click", async ()=>{
+  if(running || !doc) return;
+  running=true;
+  $("go").disabled=true;
+  $("fail-card").hidden=true;
+  ["best-card","chart-card","table-card"].forEach(i=>$(i).hidden=true);
+  $("progress-card").hidden=false;
+
+  const mode=$("mode").value;
+  const type=$("type").value;
+  const plan = mode==="best_type"
+    ? TYPE_NAMES.flatMap(n=>configurations(n,10))
+    : configurations(type,30);
+
+  /* don't clobber whatever the student has saved in the workbench */
+  let saved=null;
+  try{ saved=localStorage.getItem("truss3d.v1"); }catch(_){}
+
+  const rows=[], skipped=[];
+  try{
+    for(let i=0;i<plan.length;i++){
+      const c=plan[i];
+      $("run-msg").textContent=`${c.type} · ${c.topologyLabel} · h = ${c.height.toFixed(2)} in`;
+      $("run-count").textContent=`${i} of ${plan.length}`;
+      $("run-fill").style.width=(100*i/plan.length)+"%";
+      await new Promise(r=>setTimeout(r,0));
+      const a=analyze(c.members,20);
+      (a.ok?rows:skipped).push({...c, analysis:a});
+    }
+    $("run-fill").style.width="100%";
+    $("run-count").textContent=`${plan.length} of ${plan.length}`;
+  }catch(e){
+    fail(`<b>The analysis stopped.</b> ${esc(e.message||e)}`);
+    running=false; $("go").disabled=false; return;
+  }finally{
+    try{ if(saved!==null) localStorage.setItem("truss3d.v1",saved); }catch(_){}
+  }
+
+  const ranked=rows.filter(r=>r.analysis.loadPerGram)
+                   .sort((a,b)=>b.analysis.loadPerGram-a.analysis.loadPerGram);
+  RESULT={mode,type,ranked,skipped,plan};
+  $("progress-card").hidden=true;
+  if(!ranked.length){
+    fail("<b>No configuration produced a result.</b> Reload the page and try again.");
+    running=false; $("go").disabled=false; return;
+  }
+  render();
+  running=false; $("go").disabled=false;
+});
+
+function summaryRows(){
+  const {mode,type,ranked}=RESULT;
+  if(mode==="best_type"){
+    const seen=new Map();
+    for(const r of ranked) if(!seen.has(r.type)) seen.set(r.type,r);
+    return [...seen.values()].map(r=>({label:r.type, r}));
+  }
+  return ranked.slice(0,12).map(r=>({label:`${r.topologyLabel}, h=${r.height.toFixed(2)} in`, r}));
+}
+
+function render(){
+  const {mode,type,ranked,skipped}=RESULT;
+  const best=ranked[0], a=best.analysis;
+
+  $("best-card").hidden=false;
+  $("winner").innerHTML=
+    `<img src="${a.shot.url}" alt="The best truss found: ${esc(best.type)}, ${esc(best.topologyLabel)}">
+     <div class="who"><h3>${esc(best.type)}</h3>
+     <dl class="kv">
+       <dt>Configuration</dt><dd>${esc(best.topologyLabel)}</dd>
+       <dt>Height</dt><dd>${best.height.toFixed(2)} in</dd>
+       <dt>Members per plane</dt><dd>${a.members}</dd>
+       <dt>Maximum load</dt><dd>${fmt(a.maxLoad,1)} lb</dd>
+       <dt>Mass</dt><dd>${fmt(a.mass,2)} g</dd>
+       <dt>Load / weight</dt><dd>${fmt(a.loadPerGram,2)} lb per gram</dd>
+       <dt>Limited by</dt><dd>${esc(a.limitedBy||"—")}</dd>
+     </dl></div>`;
+
+  const sum=summaryRows();
+  $("chart-title").textContent = mode==="best_type"
+    ? "Best result for each truss type" : `Top configurations — ${type}`;
+  const top=sum[0].r.analysis.loadPerGram;
+  $("chart-card").hidden=false;
+  $("chart").innerHTML = sum.map(s=>{
+    const v=s.r.analysis.loadPerGram;
+    return `<span class="cat">${esc(s.label)}</span>
+      <span class="track"><i style="width:${(100*v/top).toFixed(1)}%"></i></span>
+      <span class="val">${fmt(v,2)}</span>`;
+  }).join("") + `<div class="axis">Load carried per gram of balsa (lb per g)</div>`;
+
+  $("table-card").hidden=false;
+  $("rows").innerHTML = ranked.map((r,i)=>{
+    const x=r.analysis;
+    return `<tr class="${i===0?'top':''}">
+      <td class="num">${i+1}</td><td>${esc(r.type)}</td><td>${esc(r.topologyLabel)}</td>
+      <td class="num">${r.height.toFixed(2)}</td><td class="num">${x.members}</td>
+      <td class="num">${fmt(x.mass,2)}</td><td class="num">${fmt(x.maxLoad,1)}</td>
+      <td class="num">${fmt(x.loadPerGram,2)}</td><td>${esc(x.limitedBy)}</td>
+      <td><img src="${x.shot.url}" alt="${esc(r.type)} ${esc(r.topologyLabel)}" loading="lazy"></td></tr>`;
+  }).join("") + (skipped.length
+    ? `<tr><td colspan="10" style="color:var(--warn);white-space:normal">
+       ${skipped.length} configuration(s) were rejected by the workbench and are not ranked.</td></tr>` : "");
+}
+
+function saveBlob(blob, name){
+  const url=URL.createObjectURL(blob), a=document.createElement("a");
+  a.href=url; a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },1500);
+}
+function stamp(){
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+$("dl-xlsx").addEventListener("click",()=>{
+  if(!RESULT) return;
+  const {mode,type,ranked}=RESULT;
+  const meta={
+    title: mode==="best_type" ? "Best truss type - 10 configurations of each of 7 types"
+                              : `${type} - 30 configurations`,
+    summaryTitle: mode==="best_type" ? "Best configuration found for each truss type"
+                                     : `Top configurations of the ${type} truss`,
+    subtitle: `Balsa Truss Workbench - generated ${new Date().toLocaleString()}`,
+    notes:[
+      "12.00 in span - 0.25 in square balsa - two plane trusses 2.00 in apart - load split evenly across the width at midspan.",
+      "Max load is the total load at which the first member reaches its capacity.",
+      "Mass and load/weight cover the whole bridge: both plane trusses plus cross members.",
+      "Ranked by load/weight. Results scale linearly with load, so the ranking does not depend on it."
+    ],
+    catLabel: mode==="best_type" ? "Truss type" : "Configuration",
+    summary: summaryRows()
+  };
+  const bytes=buildXlsx(meta,ranked);
+  const stem = mode==="best_type" ? "best-truss-type" : type.toLowerCase().replace(/\s+/g,"-");
+  saveBlob(new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}),
+           `${stem}-${stamp()}.xlsx`);
+});
+
+$("dl-csv").addEventListener("click",()=>{
+  if(!RESULT) return;
+  const head=["Rank","Truss type","Configuration","Height (in)","Members","Mass (g)","Max load (lb)",
+              "Load per gram","Load per load","Limited by","Peak tension (lb)","Peak compression (lb)","Deflection (in)"];
+  const q=s=>`"${String(s).replace(/"/g,'""')}"`;
+  const lines=[head.map(q).join(",")];
+  RESULT.ranked.forEach((r,i)=>{
+    const a=r.analysis;
+    lines.push([i+1,r.type,r.topologyLabel,r.height,a.members,a.mass,a.maxLoad,
+                a.loadPerGram,a.loadPerLoad,a.limitedBy,a.tension,a.compression,a.deflection].map(q).join(","));
+  });
+  const stem = RESULT.mode==="best_type" ? "best-truss-type" : RESULT.type.toLowerCase().replace(/\s+/g,"-");
+  saveBlob(new Blob([lines.join("\n")],{type:"text/csv"}), `${stem}-${stamp()}.csv`);
+});
+
+$("go").disabled=true;
+})();
+</script>
+</body>
+</html>
